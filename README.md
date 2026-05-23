@@ -38,7 +38,6 @@ Three prompt variants for the same task were measured using Gemini's native Toke
 |---|---|---|
 | Natural language | ~170 | baseline |
 | AICO-4 base | ~80 | ~53% |
-| AICO-4-Code extension | ~60 | ~65% |
 
 Reduction scales with instruction complexity. Simple single-hop queries compress modestly (17%). Complex multi-parameter orchestration instructions with typed contracts and pipeline routing compress maximally (53–65%).
 
@@ -124,32 +123,6 @@ A multi-agent pipeline: plan → write → test → review
 
 ⊙[∀] · ⇒✓{𝔹:TYPED · ✓[∄ ERR]} ⇒ 𝕃[𝕊]:FILES
 ```
-
----
-
-## Domain Extensions
-
-### AICO-4-Code *(in progress)*
-
-A coding-domain extension layered on top of AICO-4 base. Adds:
-
-- Typed code action verbs: `λ:WRITE`, `λ:REFACTOR`, `λ:DEBUG`, `λ:TEST_GEN`, `λ:REVIEW`, `λ:DEP_AUDIT`
-- Language/runtime/framework primitives: `𝕃𝔾[TS]`, `ℝ𝕋[NODE]`, `𝔽𝕎[EXPRESS]`
-- Surgical scope targeting: `𝔾[FN:login]`, `𝔾[MOD:auth]`, `𝔾[BLK:40-55]`
-- Code-specific contracts: `✓[COV:90]`, `✓[∄ SECRET]`, `✓[SEC:OWASP]`, `✗{any}`
-- 13 CODE-layer NAK codes for pipeline error routing
-- 7 built-in macros: `μ:PYMOD`, `μ:TSMOD`, `μ:HOTFIX`, `μ:REVIEW_STRICT` and more
-
----
-
-## Roadmap
-
-- [x] AICO-4 base specification (v4.0)
-- [ ] AICO-4-Code domain extension (v4.0-CODE)
-- [ ] Cross-model tokenizer benchmark (Gemini · GPT-4 · Claude)
-- [ ] arXiv paper — token efficiency and architectural quality in symbolic AI orchestration
-- [ ] AICO-4-Data domain extension
-- [ ] AICO-4-Agents domain extension (multi-agent topology primitives)
 
 ---
 
