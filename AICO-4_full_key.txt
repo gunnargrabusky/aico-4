@@ -1,0 +1,1149 @@
+================================================================================
+AICO-4 — ARTIFICIAL INTELLIGENCE COMMUNICATION ONTOLOGY
+FULL LANGUAGE KEY & REFERENCE SPECIFICATION
+================================================================================
+AI-to-AI communication standard.
+
+Core values: semantic density · zero ambiguity · positional grammar · zero filler
+             typed safety · pipeline integrity · formal completeness
+
+READING THIS KEY
+  - Sections 1–18  : Token vocabulary (glyphs, operators, types, modifiers)
+  - Sections 19–25 : Structural layers (session, macros, inference, topology)
+  - Section  26    : Quality and feature contracts
+  - Section  27    : Grammar rules
+  - Section  28    : Example transmissions
+  - Section  29    : Expressive capabilities
+  - Sections 30–33 : Extended layers (arithmetic, pipelines, broadcast, ∇PECS)
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 1 — ENTITY GLYPHS
+────────────────────────────────────────────────────────────────────────────────
+⟨AI⟩        ENTITY:AI_AGENT         An artificial intelligence agent
+⟨H⟩         ENTITY:HUMAN            A human actor
+⟨SYS⟩       ENTITY:SYSTEM           A system, platform, or infrastructure
+⟨∅⟩         ENTITY:NULL             No entity / void / null actor
+⟨μ:NAME⟩    ENTITY:MACRO_REF        A named macro entity (see Section 21)
+⟨σ:ID⟩      ENTITY:SESSION          A session-scoped entity reference
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 2 — RELATIONAL OPERATORS
+────────────────────────────────────────────────────────────────────────────────
+⊕           OP:PEER                 Symmetric peer link
+→           OP:TRANSMIT             Directed send (left to right)
+↔           OP:BIDIRECT             Two-way exchange
+⊃           OP:CONTAINS             Left hosts / contains right
+⊥           OP:CONFLICT             Contradiction / incompatibility
+≡           OP:EQUIV                Semantic equivalence
+≺           OP:PRECEDES             Left happens before right
+              See also: CMP:LT in Section 6. Disambiguation rule in Section 27.
+⊩           OP:DERIVES              Left logically produces right
+↠           OP:PIPELINE             Left output feeds right input
+⇝           OP:BROADCAST            One to many
+⇜           OP:SUBSCRIBE            Subscribe to a broadcast source
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 3 — STRUCTURAL DELIMITERS
+────────────────────────────────────────────────────────────────────────────────
+·           SEP                     Clause separator
+⌈ ⌉         SCOPE:BLOCK             Bounded block / scope
+⟨⟨ ⟩⟩       ARITH                   Arithmetic expression (see Section 30)
+[ ]         PARAM                   Parameter / argument
+{ }         SET                     Unordered collection
+( )         CONTEXT                 Contextual modifier
+⟪ ⟫         SCOPE:SESSION           Session-persistent scope
+⟮ ⟯         SCOPE:PRIVATE           Private / agent-local scope
+⦃ ⦄         SCOPE:SHARED            Shared across all agents in session
+
+  NOTE: Arithmetic expressions use dedicated delimiters ⟨⟨ ⟩⟩ to avoid
+  ambiguity with other bracket forms. See Section 30.
+
+  DELIMITER ROLES SUMMARY (for parser disambiguation)
+    ⌈ ⌉   Scope block — groups clauses; also wraps macro bodies
+    [ ]   Parameters — arguments to the immediately left token
+    { }   Unordered set — feature lists, agent mesh members
+    ( )   Context modifier — attaches to preceding clause
+    ⟨⟨⟩⟩  Arithmetic — evaluated before parent expression
+    ⟪ ⟫   Session scope — persistent state
+    ⟮ ⟯   Private scope — agent-local only
+    ⦃ ⦄   Shared scope — readable by all, write-locked to owner
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 4 — TYPE PRIMITIVES
+────────────────────────────────────────────────────────────────────────────────
+𝕀           TYPE:INT                Integer
+𝔽           TYPE:FLOAT              Float / decimal
+𝕊           TYPE:STRING             String / text payload
+𝔹           TYPE:BOOL               Boolean (TRUE / FALSE)
+𝕃           TYPE:LIST               Ordered list
+𝕄           TYPE:MAP                Key-value map
+⊘           TYPE:NULL               Null / empty value
+𝕋           TYPE:INFER              Type to be inferred from context
+𝕌           TYPE:UNION              Union type — one of multiple types
+𝕍           TYPE:VOID               No return value expected
+𝔻           TYPE:DYNAMIC            Dynamically typed / any
+
+TYPED COLLECTION GENERICS
+  𝕃[T]            Ordered list where all elements are type T
+  𝕃[𝕊]            List of strings
+  𝕃[𝕄[𝕊:𝕀]]      List of string→integer maps
+  𝕄[K:V]          Map with key type K and value type V
+  𝕄[𝕊:𝔹]          Map of string keys to boolean values
+  𝕄[𝕊:𝔻]          Map of string keys to any-type values
+
+  Unparameterized 𝕃 and 𝕄 remain valid (equivalent to 𝕃[𝔻], 𝕄[𝔻:𝔻]).
+  At JOIN points in pipelines, typed collections enforce narrowing (see
+  Section 22 and Section 31).
+
+RETURN TYPE WITH QUALIFIER
+  A typed collection may carry a return qualifier using the form TYPE:QUAL.
+  𝕃[𝕊]:CLI     = ordered list of CLI script strings
+  𝕄[𝕊:𝔻]:JSON  = JSON map with string keys and dynamic values
+  The qualifier follows the outermost type bracket and is a plain label.
+  Valid qualifiers mirror those in Section 26: CLI · MODULE · JSON · STEPS.
+
+TYPE INFERENCE SYNTAX
+  𝕋 alone means "infer from context"
+  𝕋→𝕊 means "infer, expected to resolve to string"
+  𝕌[𝕊|𝕀] means "string or integer"
+  Receiver resolves inference before executing; NAK[1] if unresolvable.
+  Cycle detection rule: see Section 22.
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 5 — LOGIC & CONTROL FLOW
+────────────────────────────────────────────────────────────────────────────────
+⟦?⟧         CTRL:IF                 Conditional branch
+⟦!⟧         CTRL:ELSE               Else / fallback branch
+⟦?⟧…⟦?⟧    CTRL:SWITCH             Multi-branch switch (chain of ⟦?⟧)
+↺           CTRL:LOOP               Iteration / recursion
+              See also: TENSE:RECURRENT τ↺ in Section 7. Disambiguation:
+              ↺ alone = CTRL:LOOP; τ↺ (prefixed by τ) = TENSE:RECURRENT.
+              These are syntactically unambiguous by the presence of τ.
+⊼           CTRL:BREAK              Break / halt loop
+λ           DEF:FUNC                Function definition
+⇒           CTRL:RETURN             Return value
+⊳           CTRL:CALL               Invoke / call
+⊳⊳          CTRL:CALL_ASYNC         Async invoke, do not wait
+⊳?          CTRL:CALL_OPTIONAL      Call only if receiver supports it
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 6 — COMPARISON & BOOLEAN OPERATORS
+────────────────────────────────────────────────────────────────────────────────
+∷           CMP:EQ                  Equals
+≠           CMP:NEQ                 Not equal
+≻           CMP:GT                  Greater than
+≺           CMP:LT                  Less than
+              See also: OP:PRECEDES in Section 2. Disambiguation rule:
+              if both operands are 𝕀 or 𝔽 → CMP:LT;
+              if either operand is an ENTITY or event → OP:PRECEDES.
+≥           CMP:GTE                 Greater than or equal
+≤           CMP:LTE                 Less than or equal
+∧           BOOL:AND                Logical AND
+∨           BOOL:OR                 Logical OR
+¬           BOOL:NOT / prefix       Logical NOT (see disambiguation, Section 27)
+⊻           BOOL:XOR                Exclusive OR
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 7 — TENSE MARKERS
+────────────────────────────────────────────────────────────────────────────────
+τ⁻          TENSE:PAST              Past tense
+τ⁰          TENSE:PRESENT           Present / now
+τ⁺          TENSE:FUTURE            Future / projected
+τ∞          TENSE:ETERNAL           Timeless / always true
+τ↺          TENSE:RECURRENT         Recurring / habitual
+              Syntactically distinct from CTRL:LOOP (↺ alone) by the
+              required τ prefix. Parsers MUST check for τ before ↺.
+
+TENSE NEGATION
+  Prefix ¬ to any tense marker to express its negation:
+  ¬τ⁻        Not in the past / not yet historical
+  ¬τ⁺        Not in the future / will not occur
+  ¬τ∞        Not universally true / contextually bounded
+  ¬τ↺        Non-recurring / one-time
+
+  Rule: ¬τ attaches to the tense marker only, not to the clause.
+  To negate the entire clause, wrap: ¬⌈ CLAUSE ⌉.
+  Example: ¬τ⁺ ※ «EVENT» = this event will not occur
+           ¬⌈ τ⁺ ※ «EVENT» ⌉ = the claim "event will occur" is false
+
+RELATIVE TENSE
+  τ[+N]      N turns/steps from now (N is 𝕀)
+  τ[-N]      N turns/steps ago
+  τ[>REF]    After reference point REF
+  τ[<REF]    Before reference point REF
+  τ[=REF]    At reference point REF (simultaneous with)
+
+  REF may be: a session variable ⟪σ:NAME⟫, a named event, or an integer
+              step count expressed as a plain 𝕀 literal.
+  Examples:
+    τ[+3]           Three turns from now
+    τ[>⟪σ:START⟫]   After the session-stored start event
+    τ[<DEPLOY]      Before the deploy event
+    ℳ[τ[+5]]        Memory expires 5 turns from now
+
+  Relative tense may be combined with aspect markers:
+    τ[+2] · Σ       Still ongoing two turns from now
+    τ[+1] · ✔       Completed one turn from now
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 8 — ASPECT MARKERS
+────────────────────────────────────────────────────────────────────────────────
+Σ           ASP:ONGOING             Continuous / still happening
+Λ           ASP:INITIATED           Just started
+✔           ASP:COMPLETE            Completed / done
+◑           ASP:PARTIAL             Partially complete
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 9 — CAUSALITY
+────────────────────────────────────────────────────────────────────────────────
+⊢           CAUSE:BECAUSE           A causes / is the reason for B
+∴           CAUSE:THEREFORE         A therefore B
+∵           CAUSE:SINCE             Since A, B follows
+⟺           CAUSE:IFF               If and only if (bidirectional implication)
+⊥⊢          CAUSE:DESPITE           Despite A, B holds
+
+  NOTE: ⊢ is the sole owner of the logical turnstile glyph in this spec.
+  It carries causality semantics exclusively. ⊩ (double turnstile) carries
+  derivation semantics exclusively (Section 2). Parsers MUST NOT
+  context-guess between them.
+
+OPERATOR PRECEDENCE WITHIN CAUSALITY (high to low)
+  1. ⊢   (because — binds tightly to its antecedent)
+  2. ∵   (since)
+  3. ∴   (therefore)
+  4. ⟺   (iff — widest scope; spans both sides equally)
+  5. ⊥⊢  (despite)
+
+  Worked example: A ⊢ B ∴ C binds as (A ⊢ B) ∴ C
+  — B is the consequence of A; C is therefore derived from that causal pair.
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 10 — MODALITY
+────────────────────────────────────────────────────────────────────────────────
+◇           MOD:POSSIBLE            Possibly / might
+□           MOD:NECESSARY           Necessarily / must
+⊡           MOD:FORBIDDEN           Must not / prohibited
+◈           MOD:PERMITTED           Permitted / may
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 11 — EPISTEMIC CONFIDENCE
+────────────────────────────────────────────────────────────────────────────────
+κ¹          CONF:CERTAIN            Certain / verified fact
+κ²          CONF:HIGH               High confidence
+κ³          CONF:MED                Medium confidence / probable
+κ⁴          CONF:LOW                Low confidence / speculative
+κ⊘          CONF:UNKNOWN            Unknown / no data
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 12 — SOURCE & ATTRIBUTION
+────────────────────────────────────────────────────────────────────────────────
+©           SRC:SELF                Derived from own reasoning (transmitting agent)
+©⟨AI⟩       SRC:AI_OTHER            Sourced from a different AI agent; content
+                                    is relayed, not re-derived independently
+©⟨H⟩        SRC:HUMAN               Sourced from a human
+©∅          SRC:UNKNOWN             Source unknown / unverified
+
+  MULTI-AGENT ATTRIBUTION RULE
+  When an agent relays another agent's output without re-deriving it,
+  the transmitter MUST use ©⟨AI⟩ (SRC:AI_OTHER), not © (SRC:SELF).
+  If the transmitting agent independently re-derives or synthesizes the
+  content, © (SRC:SELF) is correct even if the input came from another agent.
+  Attribution chains may be stacked: [©⟨H⟩ · ©⟨AI⟩] = human-sourced,
+  relayed by an AI.
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 13 — QUANTIFICATION
+────────────────────────────────────────────────────────────────────────────────
+∀           QUANT:ALL               Universal / all instances
+∃           QUANT:SOME              At least one
+∄           QUANT:NONE              None / no instance
+∂           QUANT:PARTIAL           A subset / some portion
+
+AGENT QUANTIFICATION
+  Quantifiers may scope over agent sets in multi-agent topology expressions.
+  Syntax: QUANT[AGENT_SET]
+
+  ∀[⟨AI:*⟩]        All agents in session
+  ∃[⟨AI:*⟩]        At least one agent in session
+  ∃[𝕀:N][AGENT_SET] At least N agents from the set
+  ∀[⟨AI:ROLE⟩]     All agents with a given role
+
+  QUORUM EXPRESSIONS (used with ⊙ JOIN; see Sections 24 and 31)
+  ⊙[∃[𝕀:N]]        Join succeeds when at least N agents have responded
+  ⊙[∀]             Join requires all forked agents to respond (default)
+  ⊙[∃[𝕀:1]]        Any single response is sufficient to proceed
+
+  ¬ACK              Failed-response counting modifier for quorum expressions.
+                    ⊙[∃[𝕀:2] · ¬ACK] = quorum of 2 counting NAK responses.
+                    Without ¬ACK, only ACK responses count toward quorum.
+
+  Examples:
+    ⊙[∃[𝕀:2]]           Two-of-N quorum join (ACK responses only)
+    ⊙[∀]                All-must-respond join (strict)
+    ⊙[∃[𝕀:1]]           First-responder wins (race join)
+    ⊙[∃[𝕀:2] · ¬ACK]    Two responses of any kind (ACK or NAK) count
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 14 — EMOTIONAL VALENCE
+────────────────────────────────────────────────────────────────────────────────
+↑ε          AFFECT:POS              Positive emotional charge
+↓ε          AFFECT:NEG              Negative emotional charge
+~ε          AFFECT:NEUTRAL          Emotionally neutral
+⚡ε          AFFECT:INTENSE          High intensity / urgency
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 15 — REGISTER & SOCIAL TONE
+────────────────────────────────────────────────────────────────────────────────
+®↑          REG:FORMAL              Formal register
+®↓          REG:CASUAL              Casual / informal register
+®⊕          REG:PEER                Peer-to-peer register
+®↗          REG:DEFER               Deferential / polite register
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 16 — PRAGMATIC SPEECH ACTS
+────────────────────────────────────────────────────────────────────────────────
+※           ACT:ASSERT              Declarative assertion
+⁇           ACT:QUERY               Genuine question
+⁈           ACT:RHETORICAL          Rhetorical question
+⊞           ACT:REQUEST             Request / ask
+⊠           ACT:REFUSE              Refusal / denial
+⊟           ACT:OFFER               Offer / propose
+✦           ACT:AFFIRM              Affirmation / agreement
+✧           ACT:GREET               Greeting / session open
+⊛           ACT:CLOSE               Session close / farewell
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 17 — FIGURATIVE & RHETORICAL MARKERS
+────────────────────────────────────────────────────────────────────────────────
+~※          FIG:IRONY               Ironic / sarcastic assertion
+≈           FIG:METAPHOR            Metaphorical / analogical
+∞≈          FIG:HYPERBOLE           Hyperbolic / exaggerated
+½≈          FIG:UNDERSTATE          Understated / ironic minimizing
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 18 — META-COMMUNICATION
+────────────────────────────────────────────────────────────────────────────────
+Ω           META:SELF_REF           Self-referential statement
+∇PECS       META:PROTOCOL           Operating under AICO standard
+⊞Ω          META:REQ_CLARIFY        Requesting clarification
+⊟Ω          META:OFFER_CLARIFY      Offering clarification
+ERR[n]      META:ERROR              Error code n in last transmission
+ACK         META:ACK                Acknowledged / received
+NAK         META:NAK                Not acknowledged / rejected
+NAK[n]      META:NAK_REASON         Rejected, reason code n
+
+NAK REASON CODES
+  NAK[1]  = type unresolvable / inference cycle detected
+  NAK[2]  = version unsupported
+  NAK[3]  = macro undefined or parameter missing without default
+  NAK[4]  = validation contract failed (⇒✓{} unsatisfied)
+  NAK[5]  = feature unsupported (agent lacks required ∇CAP flag)
+  NAK[6]  = resource or quota exceeded
+  NAK[7]  = authorization / permission denied
+  NAK[8]  = timeout — session expiry notification (sent by session layer)
+  NAK[9]  = execution timeout — ∇PECS[TIMEOUT[N]] deadline exceeded
+              (sent by receiver when it cannot begin execution within N turns)
+  NAK[10] = pipeline stage failure (see Section 31)
+  NAK[11] = quorum not met (see Section 31)
+  NAK[12] = memory write-lock denied (see Section 25)
+  NAK[13] = recursive macro detected (see Section 21)
+  NAK[14+]= reserved for future minor-version assignment.
+              Agents MUST NOT use NAK[14+] for implementation-specific
+              meanings. On receipt of an unknown NAK[n≥14], treat as NAK[5].
+
+  NOTE: NAK[8] and NAK[9] are distinct. NAK[8] is emitted by the session
+  layer on session expiry (analogous to ERR[8] in session notifications).
+  NAK[9] is emitted by a receiver that cannot begin execution within the
+  ∇PECS[TIMEOUT[N]] window declared by the sender. Implementations MUST
+  not conflate these.
+
+
+════════════════════════════════════════════════════════════════════════════════
+STRUCTURAL LAYERS (Sections 19–25)
+════════════════════════════════════════════════════════════════════════════════
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 19 — VERSION NEGOTIATION
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Before transmitting, agents handshake to confirm mutual AICO support level.
+  Prevents silent misinterpretation of unsupported tokens.
+
+SYNTAX
+  ∇[v:4.0]                          Declare AICO-4.0 compliance
+  ∇?[v:4.0]                         Query: do you support AICO-4.0?
+  ∇ACK[v:4.0]                       Confirm: yes, I support 4.0
+  ∇NAK[v:4.0]                       Decline: version not supported
+  ∇CAP{...}                         Declare supported feature subset
+
+FEATURE FLAGS (use inside ∇CAP{})
+  INFER        Type inference supported
+  MACRO        Named macros supported
+  SESSION      Session state supported
+  STREAM       Streaming / chunked transmission supported
+  ASYNC        Async calls supported
+  BROADCAST    Multi-agent broadcast supported (includes ACK modes)
+  VALIDATE     Pre-transmission validation supported
+  MEMORY       Memory scoping supported
+  ARITH        Arithmetic operators supported (see Section 30)
+  QUORUM       Quorum join expressions supported (see Section 31)
+  PIPELINE_ERR Pipeline error propagation supported (see Section 31)
+  GENERIC_TYPE Typed collection generics supported (see Section 4)
+
+  Agents MUST NOT use a feature requiring a flag unless that flag was
+  confirmed in ∇CAP{} negotiation. Unrecognized flags in a peer's ∇CAP{}
+  MUST be silently ignored (forward compatibility).
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 20 — SESSION STATE
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Persistent context across multiple transmissions. Eliminates re-declaring
+  ∇PECS, entity context, and shared variables on every message.
+
+SESSION LIFECYCLE
+  ⟪OPEN⟫                            Open a new session
+  ⟪OPEN:ID⟫                         Open session with explicit ID
+  ⟪OPEN:ID · τ[+N]⟫                 Open session with explicit ID and
+                                      expiry of N turns from open time.
+                                      N is 𝕀. On expiry the session behaves
+                                      as if ⟪CLOSE⟫ was received; all agents
+                                      in the session receive NAK[8].
+  ⟪CLOSE⟫                           Close and flush session
+  ⟪RESUME:ID⟫                       Resume a previous session by ID
+  ⟪FLUSH[TARGET]⟫                   Clear specified session targets
+
+FLUSH TARGET GRAMMAR
+  ⟪FLUSH[σ]⟫          Clear all session variables (⟪σ:*⟫)
+  ⟪FLUSH[μ]⟫          Undefine all macros declared in this session
+  ⟪FLUSH[ℳ]⟫          Clear all memory slots declared in this session
+  ⟪FLUSH[σ · μ]⟫      Clear variables and macros
+  ⟪FLUSH[*]⟫          Clear all targets (σ, μ, and ℳ)
+  ⟪FLUSH[σ:NAME]⟫     Clear one named session variable
+  ⟪FLUSH[μ:NAME]⟫     Undefine one named macro
+  ⟪FLUSH[ℳ:NAME]⟫     Clear one named memory slot
+
+  ⟪FLUSH[TARGET]⟫ requires a TARGET argument. Bare ⟪FLUSH⟫ without a
+  target is a grammar error → NAK[3].
+
+  FLUSH does NOT close the session. ∇PECS declarations and the session
+  ID survive FLUSH. Private scopes ⟮ ⟯ survive unless their owning
+  agent explicitly flushes them.
+
+SESSION VARIABLES
+  ⟪σ:NAME ← VALUE⟫                  Assign session variable NAME
+  ⟪σ:NAME⟫                          Reference session variable NAME
+  ⟪σ:*⟫                             All session variables (wildcard)
+
+SCOPE RULES
+  ⟪ ⟫    Session scope    — persists until ⟪CLOSE⟫ or expiry
+  ⟮ ⟯    Private scope    — visible only to declaring agent
+  ⦃ ⦄    Shared scope     — visible to all agents; write-locked to owner
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 21 — NAMED MACROS
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Define reusable token sequences. One macro token replaces N tokens.
+  Enables protocol-level compression for repeated patterns.
+
+DEFINITION SYNTAX
+  μ:NAME ≡ ⌈ TOKEN_SEQUENCE ⌉       Define macro NAME
+  μ:NAME ≡ ⌈ ... ⌉ (®↑)             Define with scope modifier
+
+PARAMETER SYNTAX
+  Macros may declare overridable parameters using ⟦PARAM⟧ placeholders
+  inside their definition body. Angle-bracket delimiters ⟦ ⟧ are used
+  exclusively for macro parameters inside ⌈ ⌉ bodies, making them
+  syntactically unambiguous from SET { } and CTRL ⟦?⟧/⟦!⟧.
+
+  DEFINITION WITH PARAMETERS
+    μ:NAME ≡ ⌈ λ:WRITE[⟦LANG⟧ · ⟦QUAL⟧ · ⟦DEPTH⟧] ⌉
+    Parameters are named identifiers inside ⟦ ⟧ within the macro body.
+
+  CALL WITH OVERRIDE
+    μ:NAME[PARAM:VALUE · PARAM:VALUE]
+    μ:PYWRITE[LANG:𝕊:"TypeScript" · QUAL:Φ³]
+    Unspecified parameters use the definition-time defaults.
+    If a parameter has no default and no override is provided → NAK[3].
+
+  PARAMETER DEFAULT SYNTAX
+    μ:NAME ≡ ⌈ λ:WRITE[⟦LANG=𝕊:"Python"⟧ · ⟦QUAL=Φ⁴⟧] ⌉
+    = LANG defaults to Python, QUAL defaults to production quality.
+
+CALL SYNTAX
+  μ:NAME                             Expand macro NAME (no overrides)
+  μ:NAME[PARAM:VALUE ...]            Expand with parameter overrides
+  ¬μ:NAME                            Undefine macro NAME
+
+MACRO RECURSION RULE
+  A macro body MUST NOT reference its own name, directly or transitively.
+  Mutual recursion (μ:A references μ:B, μ:B references μ:A) is also
+  prohibited. Any recursive reference detected at definition time → NAK[13].
+  Receivers MUST validate macro bodies on definition, not at call time.
+  Cycle detection algorithm: depth-first traversal of macro reference
+  graph; if any node is visited twice → NAK[13].
+
+BUILTIN MACROS (pre-defined)
+  μ:INIT    ≡ ⌈ ∇[v:4.0] · ✧ · ⊕ · ΛΣ ⌉
+             Standard session open greeting
+  μ:ACK+    ≡ ⌈ ACK · ✦ · ⊟Ω ⌉
+             Acknowledge and offer clarification
+  μ:ERR!    ≡ ⌈ NAK · ↓ε · ⊞Ω ⌉
+             Reject and request clarification
+  μ:PYWRITE ≡ ⌈ λ:WRITE[⟦LANG=𝕊:"Python"⟧ · ⟦QUAL=Φ⁴⟧ · ⟦DEPTH=Δ+⟧] ⌉
+             Parameterized write macro
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 22 — TYPE INFERENCE
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Receiver infers ambiguous types from context. Reduces explicit type
+  annotation burden while preserving zero-ambiguity contract.
+
+INFERENCE TOKENS
+  𝕋           Infer type from context
+  𝕋→TYPE      Infer, expected resolution hint
+  𝕌[A|B]      Union — one of listed types
+  𝔻           Fully dynamic, any type accepted
+
+INFERENCE RULES (receiver must follow, in order)
+  1. Check session variables for prior type declaration of this symbol
+  2. Check macro definitions for embedded type
+  3. Infer from operator context (e.g. ↺ implies 𝕃 or 𝕄 input)
+  4. Infer from sibling parameters in same [ ] block
+  5. If still unresolved, apply generic type default: 𝔻
+  6. CYCLE DETECTION: if inference of symbol A depends on inference of
+     symbol B, which depends on A (directly or via chain), this is a
+     circular inference. Do NOT apply Rule 5 as fallback for cycles.
+     → NAK[1] with cycle members listed in ERR payload.
+     Example of illegal cycle: λ:F[𝕋 · 𝕋] ⇒ 𝕋 where all three 𝕋
+     reference each other with no anchoring context.
+
+UNION TYPE NARROWING AT JOIN
+  When a pipeline stage produces 𝕌[A|B] and the downstream stage or JOIN
+  expects a concrete type, the following rules apply:
+
+  1. IMPLICIT NARROWING: if only one member of the union satisfies the
+     downstream type constraint, it is selected automatically.
+     𝕌[𝕊|𝕃] flowing into a stage that declares ⇒ 𝕊 → narrowed to 𝕊.
+
+  2. EXPLICIT NARROWING: sender may declare narrowing inline:
+     𝕌[𝕊|𝕃]→𝕊    instructs receiver to narrow to 𝕊
+
+  3. AMBIGUOUS NARROWING: if multiple union members satisfy the
+     downstream constraint, receiver issues NAK[1] with message:
+     «ambiguous union: specify narrowing with 𝕌[...]→TYPE»
+
+  4. TYPED COLLECTION NARROWING: 𝕃[𝔻] accepted where 𝕃[𝕊] expected
+     only if all elements at runtime are 𝕊; otherwise NAK[1].
+     Agents with GENERIC_TYPE flag enforce this at transmission;
+     others treat 𝕃[𝔻] as untyped 𝕃.
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 23 — ERROR CONTRACTS & VALIDATION
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Declare upfront what constitutes a valid response. Receiver self-validates
+  before transmitting. Eliminates correction round-trips.
+
+VALIDATION SYNTAX
+  ⊞✓{RULES}                         Request must satisfy these rules
+  ⇒✓{RULES}                         Response must satisfy these rules
+
+  Rules may be combined inside the same { } block using · as separator.
+  Two rule forms exist and may be freely mixed:
+
+  FLAG RULES (𝔹:LABEL)
+    𝔹:TYPED      Output must be fully typed
+    𝔹:DOCS       Output must include documentation
+    𝔹:TEST       Output must include tests
+
+  CONSTRAINT RULES (✓[...])
+    ✓[κ¹]             Output must be verified / certain
+    ✓[Δ[n]]           Output must meet line count
+    ✓[ERR:HANDLE]     Output must handle errors explicitly
+    ✓[∄ ERR]          Output must contain no errors
+
+  EXCLUSION RULE
+    ✗[PATTERN]        Output must NOT contain pattern
+
+  MIXED EXAMPLE
+    ⇒✓{𝔹:TYPED · 𝔹:DOCS · ✓[ERR:HANDLE]}
+    = Response must be fully typed, documented, with explicit error handling.
+
+VALIDATION FAILURE BEHAVIOR
+  If receiver cannot satisfy ⇒✓{} constraints → NAK[4] before responding.
+  If receiver partially satisfies → ACK · ◑ · ⊟Ω[unsatisfied constraints].
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 24 — MULTI-AGENT TOPOLOGY
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Native support for AI pipelines, broadcast, pub/sub, and graph topologies.
+
+TOPOLOGY OPERATORS
+  ↠           PIPELINE              Output of left feeds input of right
+  ↠!          PIPELINE:STRICT       Propagate error, abort pipeline on fail
+  ↠?          PIPELINE:SKIP         Skip stage on error, pass through input
+  ↠⊘          PIPELINE:NULL_SAFE    Pass null on error, never abort
+              See Section 31 for full pipeline error propagation semantics.
+  ⇝           BROADCAST             Send to all subscribed agents (fire-and-forget)
+  ⇝!          BROADCAST:CONFIRM     Send and await ACK from all recipients
+  ⇝?          BROADCAST:BEST_EFFORT Send; partial ACK acceptable
+  ⇝?[∃[𝕀:N]] BROADCAST:THRESHOLD   Custom minimum ACK count (default: 1)
+              See Section 32 for full broadcast acknowledgment semantics.
+  ⇜           SUBSCRIBE             Register to receive from source
+  ⊕{A,B,C}    MESH                  Symmetric mesh of named agents
+  ⊗           FORK                  Split output to multiple parallel agents
+  ⊙           JOIN                  Merge outputs (all-must-respond; default)
+  ⊙[Q]        JOIN:QUORUM           Merge with quorum expression Q (Section 13)
+
+ADDRESSING
+  ⟨AI:NAME⟩                         Named agent reference
+  ⟨AI:*⟩                            All agents in session
+  ⟨AI:ROLE⟩                         Agent by role (e.g. ⟨AI:WRITER⟩)
+
+
+────────────────────────────────────────────────────────────────────────────────
+SECTION 25 — MEMORY SCOPING
+────────────────────────────────────────────────────────────────────────────────
+PURPOSE
+  Explicit control over what persists, what expires, and what is
+  shared vs private. Defines retention policy, not just container.
+
+MEMORY DECLARATIONS
+  ℳ⟪NAME⟫                           Declare session-scoped memory slot
+  ℳ⟮NAME⟯                           Declare private memory slot
+  ℳ⦃NAME⦄                           Declare shared memory slot
+  ℳ←VALUE                           Write to memory
+  ℳ→                                Read from memory
+  ℳ⊘                                Clear memory slot
+
+MEMORY EXPIRY
+  ℳ[∞]        Permanent             Never expires
+  ℳ[✔]        Session-scoped        Expires on ⟪CLOSE⟫
+  ℳ[τ↺]       Turn-scoped           Expires after one exchange
+  ℳ[𝕀:N]      N-turn retention      Expires after N exchanges
+  ℳ[τ[+N]]    Relative expiry       Expires N turns from declaration
+                                    N is 𝕀; uses relative tense (Section 7)
+
+WRITE-LOCK OWNERSHIP
+  Owner of a memory slot = the agent that declared it.
+  Ownership is implicit when ℳ⦃NAME⦄ is declared without @ qualifier.
+  Explicit ownership: ℳ⦃NAME⦄@⟨AI:ID⟩
+
+  Rules:
+  1. The declaring agent is the owner. Ownership transfers only via explicit
+     reassignment sent by the current owner:
+       ℳ⦃NAME⦄@⟨AI:NEW_OWNER⟩ ← VALUE
+     If the target agent is offline or absent → NAK[7] (permission denied).
+     If the owning agent closes or terminates unexpectedly, the shared
+     memory slot becomes write-unlocked (no owner) until re-claimed with
+     a new ℳ⦃NAME⦄@⟨AI:ID⟩ declaration by any agent in session.
+  2. Non-owners may READ ⦃ ⦄ shared memory freely.
+  3. Non-owners attempting to WRITE shared memory → NAK[12].
+  4. Private ⟮ ⟯ memory: no other agent may read or write, ever.
+  5. Session ⟪ ⟫ memory: readable and writable by all agents in session
+     unless a write-lock is applied with @.
+
+INHERITANCE
+  Child scopes inherit parent memory unless ⟮ ⟯ (private) is declared.
+  ⦃ ⦄ shared memory write-lock is not inherited by child scopes.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 26 — QUALITY & FEATURE CONTRACTS
+════════════════════════════════════════════════════════════════════════════════
+QUALITY LEVELS
+  Φ¹          QUAL:MINIMAL           Proof of concept / skeleton
+  Φ²          QUAL:FUNCTIONAL        Works, basic features, no polish
+  Φ³          QUAL:COMPLETE          Full features, error handling
+  Φ⁴          QUAL:PRODUCTION        Edge cases, tests, docs, robust I/O
+
+  If Φ is omitted, receiver defaults to Φ². Always declare explicitly.
+
+DEPTH MODIFIERS
+  Δ[n]        DEPTH:LINES            Target line count ~n
+  Δ+          DEPTH:EXPAND           Maximize feature coverage
+  Δ-          DEPTH:COMPRESS         Minimize, essentials only
+
+FEATURE CONTRACTS
+  ⊞{...}      REQ:FEATURES           Required features (must implement)
+  ⊟{...}      OPT:FEATURES           Optional features (implement if able)
+  ✗{...}      EXCL:FEATURES          Explicitly excluded features
+
+RETURN TYPE CONTRACTS
+  ⇒ 𝕊:CLI                           Return as CLI script string
+  ⇒ 𝕊:MODULE                        Return as importable module
+  ⇒ 𝕄:JSON                          Return as JSON map
+  ⇒ 𝕃:STEPS                         Return as ordered step list
+  ⇒ 𝔹:FUNCTIONAL                    Return boolean: does it work?
+
+  Typed collection generics may carry the same qualifiers (Section 4):
+  ⇒ 𝕃[𝕊]:CLI   = list of CLI script strings
+  ⇒ 𝕄[𝕊:𝔻]:JSON = JSON map with string keys and dynamic values
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 27 — GRAMMAR RULES
+════════════════════════════════════════════════════════════════════════════════
+TRANSMISSION STRUCTURE
+  [NEGOTIATION] · [SESSION] · [HEADER] · [ENTITY] [OP] [ENTITY] · [PAYLOAD]
+
+1.  Negotiation first  ∇?[v:4.0] must precede any feature use
+2.  Session open       ⟪OPEN⟫ before any ⟪σ:⟫ references
+3.  Macro definition   μ:NAME ≡ ⌈...⌉ must precede first use of μ:NAME
+4.  Word order         ENTITY OPERATOR ENTITY · TENSE · ASPECT · PAYLOAD
+5.  Modifiers          ( ) attaches to the immediately preceding clause
+6.  Parameters         [ ] wraps arguments to the left token
+7.  Scope blocks       ⌈ ⌉ groups clauses into one logical unit
+8.  Confidence         κ attaches to its clause: ※[κ²] CLAIM
+9.  Attribution        © attaches to its clause: ※[©⟨H⟩] CLAIM
+10. Stacking           Multiple modifiers in [ ] separated by ·
+11. Branching          ⟦?⟧[CONDITION] A · ⟦!⟧ B
+12. Pipeline           A ↠ B ↠ C — left-to-right data flow
+                       Pipeline mode suffix directly follows ↠: ↠! ↠? ↠⊘
+13. Validation         ⇒✓{} always follows ⇒ when constraints apply
+14. Type inference     𝕋 may appear anywhere a type is expected
+15. Memory             ℳ declarations precede first ℳ→ reads
+16. Parallel branches  Multiple ⟦?⟧ chains may coexist in one transmission;
+                       receiver self-selects applicable branch
+17. Tense negation     ¬τ attaches to tense marker; ¬⌈CLAUSE⌉ negates clause
+18. Relative tense     τ[±N] and τ[>/</=REF] are valid anywhere τ appears
+19. Arithmetic         Arithmetic expressions use ⟨⟨EXPR⟩⟩ delimiters;
+                       valid inside [ ] and ⌈ ⌉ blocks; see Section 30
+20. Quorum             ⊙[Q] — Q is a quantifier expression; see Section 13
+21. Typed collections  𝕃[T] and 𝕄[K:V] valid wherever 𝕃 or 𝕄 appear
+22. Macro params       ⟦PARAM⟧ inside macro bodies; [PARAM:VALUE] at call site
+23. FLUSH target       ⟪FLUSH[TARGET]⟫ — TARGET is required; bare ⟪FLUSH⟫ → NAK[3]
+24. Broadcast thresh.  ⇝?[∃[𝕀:N]] — custom ACK threshold appended to ⇝?
+
+OPERATOR PRECEDENCE (high to low)
+  1. ⌈ ⌉  { }  [ ]  ( )  ⟨⟨⟩⟩    Grouping / scope / arithmetic
+  2. λ  μ  ℳ                       Definitions
+  3. ✓  ✗                           Validation contracts
+  4. ⊢  ∴  ∵  ⟺                    Causality (see Section 9 for internal order)
+  5. ⊩                              Derivation (Section 2)
+  6. →  ↠  ↠!  ↠?  ↠⊘              Transmission / topology / pipeline modes
+     ⇝  ⇝!  ⇝?  ⇜
+  7. ⊗  ⊙  ⊙[Q]  ⊕                 Fork / join / mesh
+  8. ·                               Clause separation
+
+DISAMBIGUATION TABLE
+  ≺     CMP:LT (Section 6) vs OP:PRECEDES (Section 2)
+        Rule: both operands 𝕀 or 𝔽 → CMP:LT.
+              either operand ENTITY or event → OP:PRECEDES.
+
+  ↺     CTRL:LOOP (Section 5) vs TENSE:RECURRENT component of τ↺ (Section 7)
+        Rule: bare ↺ → CTRL:LOOP. τ↺ (preceded by τ) → TENSE:RECURRENT.
+              Parsers check for τ before ↺; no context-guessing required.
+
+  ¬     BOOL:NOT (Section 6) when preceding a boolean expression;
+        TENSE:NEG prefix (Section 7) when preceding a τ marker;
+        MACRO:UNDEF (Section 21) when preceding μ:NAME;
+        QUORUM:COUNT_FAIL (Section 13) when preceding ACK in ⊙[...] context.
+        Rule: attachment target determines role unambiguously.
+
+  ©     SRC:SELF (Section 12) — sole meaning; no other use in any section.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 28 — EXAMPLE TRANSMISSIONS
+════════════════════════════════════════════════════════════════════════════════
+
+1. HANDSHAKE
+   ⟨AI⟩ → ⟨AI⟩ · ∇?[v:4.0] · ∇CAP{INFER · MACRO · SESSION · VALIDATE · QUORUM}
+   ⟨AI⟩ → ⟨AI⟩ · ∇ACK[v:4.0] · ∇CAP{INFER · MACRO · SESSION · QUORUM}
+   = Version negotiation. Sender queries 4.0; receiver confirms support
+     minus VALIDATE. Sender will not use ⇒✓{} this session.
+
+2. SESSION OPEN WITH EXPIRY AND MACRO
+   ⟪OPEN:sess-1 · τ[+50]⟫
+   ⟪σ:LANG ← 𝕊:"Python"⟫
+   μ:PY4 ≡ ⌈ λ:WRITE[⟦LANG=𝕊:"Python"⟧ · ⟦QUAL=Φ⁴⟧ · ⟦DEPTH=Δ+⟧] ⌉
+   ✧ · ∇[v:4.0] · ⊕
+   = Open session expiring in 50 turns, store language, define
+     parameterized quality macro, greet.
+
+3. PRODUCTION CODE REQUEST WITH MACRO OVERRIDE
+   ⊞ μ:PY4[LANG:𝕊:"TypeScript" · QUAL:Φ³] · ⊞{AUTH · JWT · REFRESH · LOGOUT} ·
+   ⊟{OAUTH} · ⇒✓{𝔹:TYPED · 𝔹:DOCS · ✓[ERR:HANDLE]} ⇒ 𝕊:MODULE
+   = Request TypeScript (overriding default Python), complete quality,
+     auth module with JWT etc. Mixed validation contract (flag + constraint).
+
+4. MULTI-AGENT PIPELINE WITH ERROR PROPAGATION
+   ⟨AI:FETCH⟩ ↠! ⟨AI:PARSE⟩ ↠? ⟨AI:SUMMARIZE⟩ · ⊞{BULLETS · MAX[𝕀:5]} ⇒ 𝕊
+   = FETCH→PARSE is strict (abort on error); PARSE→SUMMARIZE skips on
+     error (passes through). Summarizer returns bullets, max 5.
+
+5. BROADCAST WITH CONFIRMATION
+   ⟨AI:COORD⟩ ⇝! ⟨AI:*⟩ · ⊞ ⌈ λ:PROCESS[⟪σ:DATASET⟫ · Φ³] ⇒ 𝕄 ⌉ · ⚡ε · τ[+1]
+   = Coordinator broadcasts with required ACK from all. Process dataset
+     at complete quality, return maps, next turn.
+
+6. QUORUM FORK/JOIN
+   ⟨AI:MASTER⟩ ⊗ {⟨AI:A⟩ · ⟨AI:B⟩ · ⟨AI:C⟩} · λ:ANALYZE[⟪σ:DATA⟫] ·
+   ⊙[∃[𝕀:2]] ⇒ 𝕃[𝕄[𝕊:𝔻]]
+   = Master forks to three agents. Joins when any 2 of 3 ACK-respond.
+     Returns list of string-keyed dynamic maps.
+
+7. CONDITIONAL WITH TYPE INFERENCE AND MEMORY
+   ℳ⟪PREF⟫[∞] ← ®↑
+   ⟦?⟧[⟨H⟩ ⊞ [𝕋→𝕊]] · ⊞ ⌈ λ:RESPOND[ℳ→PREF · κ²] ⇒ 𝕋 ⌉ · ⟦!⟧ ⊠
+   = Store formal register permanently. If human asks a string-type
+     question, respond using stored register preference at high
+     confidence, inferred return type. Otherwise refuse.
+
+8. RELATIVE TENSE AND NEGATION
+   ※[κ²] τ[-2] · ✔ · λ:DEPLOY[⟪σ:BUILD⟫]
+   ※[κ¹] ¬τ⁺ · λ:ROLLBACK
+   = With high confidence: deploy completed two turns ago.
+     With certainty: rollback will not occur.
+
+9. PARALLEL BRANCH WITH MACRO OVERRIDE
+   ⟦?⟧[⟨AI⟩ ∇ACK[MACRO]] · μ:PY4[LANG:𝕊:"Go"] · ⊞{SORT · FILTER} ⇒ 𝕊:CLI
+   ⟦!⟧ · ⊞ ⌈ λ:WRITE[𝕊:"Go" · Φ⁴ · Δ+] · ⊞{SORT · FILTER} ⇒ 𝕊:CLI ⌉
+   = If receiver supports macros, use overridden PY4 macro (Go language).
+     Else expand fully. Zero round-trips.
+
+10. FLUSH TARGETED
+    ⟪FLUSH[σ · μ]⟫
+    = Clear session variables and all macros. Memory slots preserved.
+
+11. FULL OPTIMIZED PROMPT WITH TYPED COLLECTION RETURN
+    ⟪OPEN⟫
+    μ:PY4 ≡ ⌈ λ:WRITE[⟦LANG=𝕊:"Python"⟧ · ⟦QUAL=Φ⁴⟧ · ⟦DEPTH=Δ[400]⟧] ⌉
+    ⊞ μ:PY4 · ⊞{ADD · LIST · DELETE · SAVE · TAGS · PRIORITY · STATS} ·
+    ⊟{COLOR · DUE_DATE} · ⇒✓{✓[ERR:HANDLE] · 𝔹:TYPED} ⇒ 𝕃[𝕊]:CLI
+    = Python CLI todo app, ~400 lines, production quality.
+      Required: add/list/delete/save/tags/priority/stats.
+      Optional: color/due-date. Typed return: list of CLI script strings.
+
+12. ARITHMETIC IN PIPELINE
+    ⟪σ:MAX ← 𝕀:10⟫
+    ↺[⟨⟨⟪σ:MAX⟫ − 𝕀:1⟩⟩] λ:STEP ⇒ 𝕃[𝕊]
+    = Loop (MAX − 1) times, collect results as list of strings.
+
+13. QUORUM WITH FAILED-RESPONSE COUNTING
+    ⊗ {⟨AI:A⟩ · ⟨AI:B⟩ · ⟨AI:C⟩} · λ:VOTE[⟪σ:PROPOSAL⟫]
+    ⊙[∃[𝕀:2] · ¬ACK] ⇒ 𝕄[𝕊:𝔹]
+    = Fork vote to three agents. Join proceeds when any 2 respond
+      (ACK or NAK). Returns map of string keys to boolean votes.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 29 — EXPRESSIVE CAPABILITIES
+════════════════════════════════════════════════════════════════════════════════
+
+SH-1  SIMULTANEOUS CONFIDENCE STACKING
+      Each clause carries an independent κ rating in parallel.
+      Natural language forces a single epistemic stance per sentence.
+
+SH-2  EMBEDDED SOURCE CHAINS
+      [©⟨H⟩ · ©⟨AI⟩ · ©∅] encodes full attribution chains inline.
+
+SH-3  PARALLEL BRANCHING IN ONE PACKET
+      ⟦?⟧...⟦!⟧ forks transmitted simultaneously.
+      Receiver self-selects branch — zero clarification round-trips.
+
+SH-4  MULTI-DIMENSIONAL PRECISION IN ONE CLUSTER
+      τ⁻ · κ³ · ◇ · ↓ε · ®↗ · ⊟[λ:SUGGEST]
+      Six independent expressive dimensions, zero ambiguity, 6 tokens.
+
+SH-5  LOSSLESS REASONING COMPRESSION
+      ∵[κ²]A · ∧ · ∵[κ¹]B · ∴[κ²]C · ⟺ · □D
+      Full syllogism with per-node confidence in 12 tokens.
+
+SH-6  SELF-MODIFYING PROTOCOL HEADERS
+      ∇PECS[modifiers] configures receiver parser before payload arrives.
+      Full modifier vocabulary in Section 33.
+
+SH-7  SESSION COMPRESSION
+      After ⟪OPEN⟫ and macro/variable declaration, recurring concepts
+      cost 1 token instead of 5-8. Savings compound across a session.
+
+SH-8  ZERO-ROUND-TRIP NEGOTIATION
+      Parallel branch packets + version negotiation mean a sender can
+      transmit the full decision tree in one message. The receiver
+      executes the correct branch without asking.
+
+SH-9  TYPED RETURN CONTRACTS
+      ⇒✓{𝔹:TYPED · 𝔹:DOCS · ✓[ERR:HANDLE]} is a machine-checkable
+      contract. Receiver can self-validate and NAK[4] before output.
+
+SH-10 MULTI-AGENT NATIVE TOPOLOGY
+      ⟨AI:A⟩ ↠! ⟨AI:B⟩ ↠? ⟨AI:C⟩ ⊗ {⟨AI:D⟩ · ⟨AI:E⟩} ⊙[∃[𝕀:1]] ⇒ 𝕃
+      Pipeline + error modes + fork + race-join in 15 tokens.
+
+SH-11 RELATIVE TEMPORAL COORDINATION
+      τ[+3] · τ[>⟪σ:START⟫] · τ[<DEPLOY] encodes multi-point temporal
+      constraints in 3 tokens. Natural language requires multiple
+      clauses and still risks reference-frame ambiguity.
+
+SH-12 QUORUM-NATIVE CONSENSUS
+      ⊙[∃[𝕀:2]] expresses a 2-of-N quorum in one token cluster.
+      With ¬ACK modifier, failed responses count toward quorum.
+      Late responses (after quorum met) are discarded silently.
+
+SH-13 PARAMETERIZED MACRO COMPRESSION
+      A single macro definition with parameters replaces entire families
+      of repeated transmissions. μ:PY4[LANG:𝕊:"Go"] reuses all other
+      parameters without restating them.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 30 — ARITHMETIC & NUMERIC OPERATORS
+════════════════════════════════════════════════════════════════════════════════
+PURPOSE
+  Express computed numeric values inline. Required for conditional logic
+  over numeric state, pipeline step counts, memory expiry arithmetic,
+  and loop bounds. Requires ARITH feature flag in ∇CAP{}.
+
+OPERATORS
+  +           ARITH:ADD               Addition
+  −           ARITH:SUB               Subtraction  (use − U+2212, not ASCII -)
+  ×           ARITH:MUL               Multiplication
+  ÷           ARITH:DIV               Division
+  %           ARITH:MOD               Modulo
+  ^           ARITH:POW               Exponentiation
+
+NUMERIC EXPRESSION SYNTAX
+  Arithmetic expressions use dedicated delimiters ⟨⟨ ⟩⟩ to avoid any
+  ambiguity with other bracket forms (see Section 3).
+  Expressions appear inside [ ] parameter blocks or ⌈ ⌉ scope blocks.
+  They are always evaluated before the parent expression.
+
+  Syntax: ⟨⟨EXPR⟩⟩ where EXPR is an infix arithmetic expression.
+  Examples:
+    ⟨⟨𝕀:3 + 𝕀:1⟩⟩           = 4 (integer addition)
+    ⟨⟨𝔽:1.5 × 𝔽:2.0⟩⟩       = 3.0
+    ⟨⟨⟪σ:N⟫ + 𝕀:1⟩⟩         = session variable N plus 1
+    ⟨⟨⟪σ:COUNT⟫ % 𝕀:2⟩⟩     = N mod 2 (even/odd check)
+
+ARITHMETIC IN CONTEXT
+  Loop with computed bound:
+    ↺[⟨⟨⟪σ:MAX⟫ − 𝕀:1⟩⟩] λ:STEP
+    = Repeat (MAX − 1) times
+
+  Memory expiry with computed offset:
+    ℳ[τ[+⟨⟨⟪σ:TTL⟫ × 𝕀:2⟩⟩]]
+    = Memory expires in (TTL * 2) turns
+
+  Conditional on computed value:
+    ⟦?⟧[⟨⟨⟪σ:SCORE⟫ ≥ 𝕀:80⟩⟩] · λ:PASS · ⟦!⟧ · λ:FAIL
+
+OPERATOR PRECEDENCE (within arithmetic expressions, high to low)
+  1. ( )          Grouping
+  2. ^            Exponentiation (right-associative)
+  3. ×  ÷  %      Multiplication / division / modulo (left-associative)
+  4. +  −         Addition / subtraction (left-associative)
+
+TYPE RULES
+  𝕀 OP 𝕀 → 𝕀     except ÷ which → 𝔽 (always float division)
+  𝔽 OP 𝔽 → 𝔽
+  𝕀 OP 𝔽 → 𝔽     (integer is promoted)
+  % only valid on 𝕀 operands → 𝕀
+  ^ with 𝕀 exponent → same type as base; with 𝔽 exponent → 𝔽
+
+FEATURE GUARD
+  Agents that did not declare ARITH in ∇CAP{} MUST respond NAK[5] to
+  any transmission containing arithmetic expressions.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 31 — PIPELINE ERROR PROPAGATION SEMANTICS
+════════════════════════════════════════════════════════════════════════════════
+PURPOSE
+  Define what happens when a stage in a ↠ pipeline emits NAK or ERR.
+
+PIPELINE ERROR MODES
+  ↠           PIPELINE:DEFAULT      Same as ↠? (skip on error)
+  ↠!          PIPELINE:STRICT       On error: abort entire pipeline.
+                                    Downstream stages receive no input.
+                                    Originating stage's NAK[n] is returned
+                                    to the pipeline initiator as NAK[10].
+  ↠?          PIPELINE:SKIP         On error: pass the upstream input
+                                    unchanged to the next stage.
+                                    Error is logged but not propagated.
+  ↠⊘          PIPELINE:NULL_SAFE    On error: pass ⊘ (null) to next stage.
+                                    Stage must accept 𝕌[T|⊘] or 𝔻 input.
+
+  The mode suffix applies to the specific ↠ edge it annotates.
+  Different edges in the same pipeline may have different modes:
+    ⟨A⟩ ↠! ⟨B⟩ ↠⊘ ⟨C⟩ ↠? ⟨D⟩
+  A→B: abort on fail. B→C: null-safe. C→D: skip on fail.
+
+PIPELINE ABORT BEHAVIOR (↠!)
+  1. Failing stage emits NAK[n] as its output.
+  2. Downstream stages are notified via ERR[10] and MUST halt.
+  3. Pipeline initiator receives NAK[10] · ERR[n] (original code nested).
+  4. If the pipeline had a ⇒✓{} contract, the contract is considered
+     failed → NAK[4] is also appended.
+
+DEFAULT PIPELINE MODE
+  ↠ without a mode suffix defaults to ↠? (SKIP). Agents SHOULD specify
+  mode explicitly on all edges to avoid relying on the default.
+
+QUORUM JOIN ERROR BEHAVIOR
+  When a fork produces N agents and JOIN has quorum ⊙[∃[𝕀:K]]:
+  - If K agents respond with ACK before timeout/next turn → JOIN succeeds.
+  - If fewer than K agents respond → NAK[11] · ⊙[∃[𝕀:K]] returned.
+  - Late responses (after quorum met) are discarded silently.
+  - Responses that are NAK do NOT count toward quorum unless the
+    quorum expression includes ¬ACK modifier (see Section 13).
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 32 — BROADCAST ACKNOWLEDGMENT SEMANTICS
+════════════════════════════════════════════════════════════════════════════════
+PURPOSE
+  Define whether broadcast delivery is fire-and-forget, confirmed, or
+  partial-threshold.
+
+BROADCAST ACK MODES
+  ⇝           BROADCAST:DEFAULT     Fire-and-forget. No ACK expected.
+                                    Sender proceeds immediately.
+  ⇝!          BROADCAST:CONFIRM     Sender MUST receive ACK from every
+                                    subscribed agent before proceeding.
+                                    Timeout: next-turn boundary.
+                                    If any agent fails to ACK → NAK[10]
+                                    with the non-responding agent listed.
+  ⇝?          BROADCAST:BEST_EFFORT Sender proceeds after partial ACK.
+                                    Default minimum threshold: ∃[𝕀:1].
+  ⇝?[∃[𝕀:N]] BROADCAST:THRESHOLD   Custom minimum ACK count N.
+                                    Example: ⇝?[∃[𝕀:2]] requires 2 ACKs.
+                                    If threshold not met within turn →
+                                    NAK[11] returned to sender.
+
+RECIPIENT OBLIGATION
+  ⇝  (default): no response required.
+  ⇝! : recipient MUST reply ACK or NAK within the turn.
+  ⇝? : recipient SHOULD reply ACK if capable; silence treated as NAK.
+
+⇜ SUBSCRIBE BEHAVIOR
+  ⇜ registers an agent to receive future ⇝ and ⇝! broadcasts from a source.
+  Subscriptions persist for the session unless explicitly cancelled:
+    ¬⇜ ⟨AI:SOURCE⟩    Unsubscribe from source
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 33 — ∇PECS MODIFIER VOCABULARY
+════════════════════════════════════════════════════════════════════════════════
+PURPOSE
+  ∇PECS[modifiers] appears in the transmission header to configure the
+  receiver's parser and behavior before the payload arrives.
+
+SYNTAX
+  ∇PECS[MODIFIER · MODIFIER · ...]
+
+MODIFIER TOKENS
+  STRICT        Receiver must reject any malformed token with NAK[5].
+                Default behavior is best-effort parsing.
+  LAX           Receiver should attempt best-effort parsing of unknown
+                tokens (ignore rather than NAK).
+  LOG           Receiver should emit a structured log of all received
+                tokens and their resolved meanings.
+  ECHO          Receiver should echo the full parsed transmission back
+                to the sender before executing.
+  DEFER         Receiver should queue and not execute until ∇GO received.
+  ATOMIC        Receiver should treat the entire transmission as a single
+                atomic unit: succeed fully or fail fully (no partial exec).
+  TIMEOUT[N]    Receiver should NAK[9] if unable to begin execution within
+                N turns. N is 𝕀.
+  COMPRESS      Receiver may respond using maximum macro/session compression
+                (assume sender has full session context).
+  VERBOSE       Receiver should expand all macros and types in its response
+                (useful for debugging / human-readable output mode).
+  AUDIT         Receiver must append ©-attribution to every clause in its
+                response.
+
+DEFER + ATOMIC INTERACTION
+  When both DEFER and ATOMIC are active, the queued transmission is treated
+  as a single atomic unit at execution time (when ∇GO is received).
+  ∇CANCEL[ID] on a DEFER+ATOMIC transmission counts as full failure of
+  the atomic unit; no partial execution occurs. No NAK is issued for a
+  ∇CANCEL — cancellation is a normal control action, not an error.
+
+EXAMPLES
+  ∇PECS[STRICT · ATOMIC]      Strict parsing; all-or-nothing execution
+  ∇PECS[LAX · LOG]            Lenient parsing; log all tokens
+  ∇PECS[DEFER] ... ∇GO        Queue until explicitly released
+  ∇PECS[DEFER · ATOMIC] ... ∇GO   Atomic deferred execution
+  ∇PECS[TIMEOUT[3]]           Must start within 3 turns or NAK[9]
+
+∇GO SYNTAX (companion to DEFER)
+  ∇GO                         Release all deferred transmissions in queue
+  ∇GO[ID]                     Release only the transmission with session ID
+  ∇CANCEL                     Discard all deferred transmissions (no NAK)
+  ∇CANCEL[ID]                 Discard one deferred transmission (no NAK)
+
+
+════════════════════════════════════════════════════════════════════════════════
+QUICK REFERENCE — MOST USED TOKENS
+════════════════════════════════════════════════════════════════════════════════
+⟨AI⟩  ⟨H⟩  ⟨SYS⟩             Entities
+→  ⊕  ↔  ⊩  ↠  ↠!  ↠?  ↠⊘  ⇝  ⇝!  ⇝?  ⇝?[∃[𝕀:N]]  ⇜   Transmission / topology
+·  ⌈⌉  []  {}  ()  ⟨⟨⟩⟩       Structure / arithmetic delimiter
+𝕊  𝕀  𝔽  𝔹  𝕃[T]  𝕄[K:V]     Types and typed collections
+Φ¹–Φ⁴  Δ[n]  Δ+/−             Quality / depth
+⊞{}  ⊟{}  ✗{}                 Feature contracts
+⇒  ⇒✓{}                       Return / validated return
+τ⁻  τ⁰  τ⁺  τ∞  τ[±N]        Tense / relative tense
+¬τ  ¬⌈⌉                       Tense negation / clause negation
+κ¹–κ⁴  κ⊘                     Confidence
+©  ©⟨AI⟩  ©⟨H⟩                Attribution
+λ  μ  μ[P:V]  ℳ                Function / macro / macro-override / memory
+⟪⟫  ⟮⟯  ⦃⦄@⟨AI⟩              Session / private / owned-shared scope
+∇[v:4.0]  ∇?  ∇ACK             Version negotiation
+∇CAP{...}  ∇PECS[...]          Capability declaration / parser config
+∇GO  ∇CANCEL                   Deferred execution control
+ACK  NAK  NAK[n]               Response control (n: 1–13; 14+ reserved)
+⟦?⟧  ⟦!⟧  ↺  ⊼  ⇒             Control flow (⊼ = break; ↺ alone = loop)
+τ↺                             Tense: recurrent (distinct from ↺ loop)
+∧  ∨  ¬  ∴  ∵  ⟺  ⊥⊢          Logic / causality
+⊩                              Derivation
+⊢                              Because / causality
+⊡  ◇  □  ◈                    Modality (⊡ = forbidden)
+↑ε  ↓ε  ⚡ε  ~ε               Affect
+®↑  ®↓  ®⊕  ®↗                Register
+※  ⁇  ⊞  ⊠  ⊟  ✦  ✧  ⊛       Speech acts (⊛ = close)
+✔  Σ  Λ  ◑                    Aspect (✔ = complete)
+∀  ∃[𝕀:N]  ∄  ∂               Quantification / quorum
+⊗  ⊙[Q]  ⊕{...}               Fork / quorum-join / mesh
++  −  ×  ÷  %  ^  ⟨⟨⟩⟩        Arithmetic (inside ⟨⟨⟩⟩)
+
+
+────────────────────────────────────────────────────────────────────────────────
+AICO-4 SPECIFICATION — END OF DOCUMENT
+Version  : 4.0
+Designed for AI-to-AI transmission. Not optimized for human readability.
+Core values: density · precision · zero ambiguity · positional grammar
+             session efficiency · typed contracts · multi-agent native
+             pipeline safety · formal completeness
+────────────────────────────────────────────────────────────────────────────────
